@@ -1,0 +1,47 @@
+{
+    "name": "estimates-tail",
+    "dockerComposeFile": "../../docker-compose.yml",
+    "init": true,
+    "service": "estimates-tail",
+    "workspaceFolder": "/app",
+    "runServices": [
+        "bunnyestimates-db"
+    ],
+    "shutdownAction": "stopCompose",
+    "remoteUser": "debian",
+    "overrideCommand": false,
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "editor.formatOnSave": true,
+                "python.envFile": "${localWorkspaceFolder}/.env",
+                "terminal.integrated.cwd": "/app",
+                "python.languageServer": "Pylance",
+                "python.analysis.autoImportCompletions": true,
+                "python.analysis.typeCheckingMode": "basic",
+                "python.analysis.exclude": [
+                    "**/migrations/**"
+                ],
+                "[python]": {
+                    "editor.codeActionsOnSave": {
+                        "source.organizeImports": "always"
+                    },
+                    "editor.defaultFormatter": "charliermarsh.ruff"
+                }
+            },
+            "extensions": [
+                "twixes.pypi-assistant",
+                "eamodio.gitlens",
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "visualstudioexptteam.vscodeintellicode",
+                "steoates.autoimport",
+                "batisteo.vscode-django",
+                "charliermarsh.ruff",
+                "EditorConfig.EditorConfig",
+                "GitHub.copilot-chat",
+                "tamasfe.even-better-toml"
+            ]
+        }
+    }
+}

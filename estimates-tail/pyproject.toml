@@ -1,0 +1,15 @@
+[project]
+name = "estimates-tail"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+readme = "README.md"
+dependencies = [
+    "django==5.1.6",
+    "daphne==4.1.2",
+    "channels[daphne]==4.2.0",
+    "psycopg[binary]==3.2.4",
+]
+
+[project.optional-dependencies]
+dev = ["ruff==0.9.3", "django-cors-headers==4.7.0"]

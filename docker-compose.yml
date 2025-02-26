@@ -1,0 +1,41 @@
+services:
+  estimates-tail:
+    build:
+      context: estimates-tail/
+      args:
+        INSTALL_DEV_DEPENDENCIES: "--extra dev"
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./estimates-tail:/app
+    depends_on:
+      - bunnyestimates-db
+    
+  bunnyestimates-db:
+    image: postgres:17.3-alpine3.21
+    env_file:
+      - .env
+    volumes:
+      - bunny_estimates_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U curiosirabbit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  estimates-snout:
+    build:
+      context: estimates-snout/
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./estimates-snout:/app
+
+
+volumes:
+  bunny_estimates_data:
+  

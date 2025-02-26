@@ -1,0 +1,20 @@
+{
+    "name": "estimates-snout",
+    "dockerComposeFile": "../../docker-compose.yml",
+    "init": true,
+    "service": "estimates-snout",
+    "workspaceFolder": "/app",
+    "runServices": [],
+    "shutdownAction": "stopCompose",
+    "remoteUser": "debian",
+    "overrideCommand": false,
+    "customizations": {
+        "vscode": { 
+            "extensions": [
+                "eamodio.gitlens",
+                "GitHub.copilot-chat",
+                "Vue.volar"
+            ]
+        }
+    }
+}
