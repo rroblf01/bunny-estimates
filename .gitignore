@@ -9,5 +9,8 @@ dist
 # Node dependencies
 node_modules
 
+# Bun
+bun.lock
+
 # Django
 __pycache__
