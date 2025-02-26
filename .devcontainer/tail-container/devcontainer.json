@@ -5,7 +5,8 @@
     "service": "estimates-tail",
     "workspaceFolder": "/app",
     "runServices": [
-        "bunnyestimates-db"
+        "bunnyestimates-db",
+        "bunnyestimates-redis"
     ],
     "shutdownAction": "stopCompose",
     "remoteUser": "debian",

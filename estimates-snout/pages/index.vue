@@ -4,6 +4,17 @@
     <p>Gracias por usar nuestra aplicación.</p>
 
     <form @submit.prevent="submitTasks">
+      <!-- Input para el nombre de la sala -->
+      <div class="room-name-input">
+        <label for="roomName">Nombre de la sala:</label>
+        <input
+          v-model="roomName"
+          id="roomName"
+          placeholder="Introduce el nombre de la sala"
+          required
+        />
+      </div>
+
       <button type="button" @click="addTask" class="add-button">
         Añadir tarea
       </button>
@@ -25,7 +36,7 @@
             />
             <textarea
               v-model="task.description"
-              placeholder="Descripción (opcional)"
+              placeholder="Descripción"
             ></textarea>
           </div>
         </div>
@@ -53,6 +64,7 @@ export default {
     const tasks = ref([{ title: "", description: "" }]);
     const showModal = ref(false);
     const taskToDelete = ref(null);
+    const roomName = ref("");
 
     const addTask = () => {
       tasks.value.push({ title: "", description: "" });
@@ -85,7 +97,10 @@ export default {
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ tasks: tasks.value }),
+            body: JSON.stringify({
+              tasks: tasks.value,
+              room_name: roomName.value,
+            }),
           }
         );
 
@@ -105,6 +120,7 @@ export default {
       tasks,
       showModal,
       taskToDelete,
+      roomName,
       addTask,
       showDeleteModal,
       confirmDelete,
@@ -131,6 +147,24 @@ h1 {
 p {
   text-align: center;
   color: #666;
+}
+
+.room-name-input {
+  margin-bottom: 1rem;
+}
+
+.room-name-input label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 16px;
+}
+
+.room-name-input input {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  width: 100%;
 }
 
 .task-form {

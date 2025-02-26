@@ -1,5 +1,6 @@
 import uuid
 
+from asgiref.sync import sync_to_async
 from django.db import models
 
 
@@ -28,11 +29,11 @@ class Topic(models.Model):
         return f"{self.task.title} in {self.room.name}"
 
     @property
-    def average_votes(self):
-        votes = self.vote_set.all()  # type: ignore
+    async def average_votes(self):
+        votes = await sync_to_async(list)(self.vote_set.all())
 
         if not votes:
-            return 0
+            return None
 
         values = [vote.point_value for vote in votes if vote.point_value]
         return sum(values) / len(values)

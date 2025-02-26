@@ -16,6 +16,7 @@ class TaskSchema(ModelSchema):
 
 
 class TaskListSchema(Schema):
+    room_name: str
     tasks: Annotated[list[TaskSchema], Len(min_length=1)]
 
 

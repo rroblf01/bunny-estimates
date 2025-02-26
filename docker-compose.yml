@@ -12,6 +12,7 @@ services:
       - ./estimates-tail:/app
     depends_on:
       - bunnyestimates-db
+      - bunnyestimates-redis
     
   bunnyestimates-db:
     image: postgres:17.3-alpine3.21
@@ -21,6 +22,14 @@ services:
       - bunny_estimates_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U curiosirabbit"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  
+  bunnyestimates-redis:
+    image: redis:7.4.2-bookworm
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
