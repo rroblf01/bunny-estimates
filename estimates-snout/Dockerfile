@@ -1,4 +1,4 @@
-FROM debian:bookworm-20250224-slim
+FROM denoland/deno:debian-2.2.2
 
 RUN apt update && apt install -y sudo git
 
@@ -11,9 +11,7 @@ ENV PATH="/home/debian/.local/bin:${PATH}"
 ENV WORKDIR /app
 WORKDIR $WORKDIR
 
-# Get Bun
-COPY --from=oven/bun:1.2.2-debian /usr/local/bin/bun /usr/local/bin/bun
-COPY package.json .
-RUN bun install
+COPY . .
+RUN deno install --allow-scripts
 
-CMD ["bun", "run", "dev"]
+CMD ["deno", "task", "dev", "--host", "0.0.0.0"]

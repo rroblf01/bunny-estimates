@@ -2,12 +2,9 @@
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
-  modules: ['nuxt-socket-io'],
-  io: {
-    // module options
-    sockets: [{
-      name: 'main',
-      url: 'estimates-tail:8000/'
-    }]
+  runtimeConfig: {
+    public: {
+      backendUrl: process.env.BACKEND_URL || 'localhost:8000'
+    }
   }
 })
