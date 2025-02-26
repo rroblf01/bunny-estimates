@@ -19,6 +19,8 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import path
 
+from estimates_tail.api import api
+
 
 def healthcheck(request):
     return JsonResponse({"status": "ok"})
@@ -27,4 +29,5 @@ def healthcheck(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("healthcheck/", healthcheck, name="healthcheck"),
+    path("api/", api.urls),
 ]

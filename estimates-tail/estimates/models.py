@@ -5,20 +5,27 @@ from django.db import models
 
 class Room(models.Model):
     name = models.CharField(max_length=160)
-    identifies = models.UUIDField(unique=True, editable=False, default=uuid.uuid4)
+    public_name = models.UUIDField(unique=True, default=uuid.uuid4)
 
     def __str__(self):
-        return f"{self.name} ({self.identifies})"
+        return f"{self.name} ({self.public_name})"
+
+
+class Task(models.Model):
+    title = models.CharField(max_length=160)
+    description = models.TextField()
+
+    def __str__(self):
+        return self.title
 
 
 class Topic(models.Model):
-    title = models.CharField(max_length=160)
-    description = models.TextField()
+    task = models.ForeignKey(Task, on_delete=models.CASCADE)
     room = models.ForeignKey(Room, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.title} in {self.room.name}"
+        return f"{self.task.title} in {self.room.name}"
 
     @property
     def average_votes(self):
@@ -58,4 +65,4 @@ class Vote(models.Model):
         return int(self.point) if self.point.isdigit() else None
 
     def __str__(self):
-        return f"{self.voter_name} voted {self.point} for {self.topic.title}"
+        return f"{self.voter_name} voted {self.point} for {self.topic.task.title}"

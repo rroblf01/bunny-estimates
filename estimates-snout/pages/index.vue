@@ -45,9 +45,11 @@
 
 <script>
 import { ref, reactive } from "vue";
+import { useRuntimeConfig } from "#app";
 
 export default {
   setup() {
+    const config = useRuntimeConfig();
     const tasks = ref([{ title: "", description: "" }]);
     const showModal = ref(false);
     const taskToDelete = ref(null);
@@ -76,18 +78,23 @@ export default {
 
     const submitTasks = async () => {
       try {
-        const response = await fetch("http://localhost:8000/room", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(tasks.value),
-        });
+        const response = await fetch(
+          `http://${config.public.backendUrl}/api/estimates/room`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ tasks: tasks.value }),
+          }
+        );
 
         if (response.ok) {
-          alert("Tareas enviadas con éxito");
+          response.json().then((data) => {
+            navigateTo(`/room/${data.public_name}`);
+          });
         } else {
-          alert("Error al enviar las tareas");
+          alert(response.statusText);
         }
       } catch (error) {
         console.error("Error:", error);
