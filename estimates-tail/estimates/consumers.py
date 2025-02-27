@@ -32,6 +32,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Notify other users about the disconnection
         await self.generic_notify("user_disconnected", {"user_id": self.user_id})
 
+        # If the disconnecting user is the leader, transfer leadership
+        if self.users[self.user_id].get("is_leader"):
+            await self.transfer_leadership()
+
+        del self.users[self.user_id]
+
     async def get_topics(self, data):
         topics = []
         async for topic in self.room.topic_set.select_related("task").all():
@@ -57,7 +63,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
     def _get_user_list(self):
         return [
-            {"user_id": k, "name": v.get("name"), "vote": v.get("vote")}
+            {
+                "user_id": k,
+                "name": v.get("name"),
+                "vote": v.get("vote"),
+                "is_leader": v.get("is_leader"),
+            }
             for k, v in self.users.items()
         ]
 
@@ -71,6 +82,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
         # Store the user_id in the instance
         self.user_id = user_id
+
+        # Assign the first user as the leader
+        if not any(user.get("is_leader") for user in self.users.values()):
+            self.users[user_id]["is_leader"] = True
+            user_to_return["is_leader"] = True
+            await self.generic_notify("leader_assigned", {"user_id": user_id})
 
         return user_to_return
 
@@ -101,6 +118,27 @@ class RoomConsumer(AsyncWebsocketConsumer):
             text_data=json.dumps({"type": "user_disconnected", "user_id": user_id})
         )
 
+    async def rename(self, data):
+        user_id = data["user_id"]
+        name = data["name"]
+
+        # Update the user's name
+        if user_id in self.users:
+            self.users[user_id]["name"] = name
+
+        # Notify other users about the name change
+        await self.generic_notify("user_renamed", {"user_id": user_id, "name": name})
+
+    async def user_renamed(self, event):
+        user_id = event["user_id"]
+        name = event["name"]
+        # Aquí puedes definir lo que quieres hacer cuando se cambia el nombre de un usuario
+        await self.send(
+            text_data=json.dumps(
+                {"type": "user_renamed", "user_id": user_id, "name": name}
+            )
+        )
+
     async def user_voted(self, event):
         user_id = event["user_id"]
         vote = event["vote"]
@@ -111,6 +149,41 @@ class RoomConsumer(AsyncWebsocketConsumer):
             )
         )
 
+    async def transfer_leadership(self):
+        # Transfer leadership to another user if the leader leaves
+        if self.users:
+            new_leader_id = next(
+                (
+                    user_id
+                    for user_id, user in self.users.items()
+                    if not user.get("is_leader")
+                ),
+                next(iter(self.users)),
+            )
+            self.users[new_leader_id]["is_leader"] = True
+            await self.generic_notify("leader_assigned", {"user_id": new_leader_id})
+
+    async def assign_leader(self, data):
+        current_leader_id = data["user_id"]
+        new_leader_id = data["new_leader_id"]
+        if (
+            new_leader_id in self.users
+            and current_leader_id in self.users
+            and self.users[current_leader_id].get("is_leader")
+        ):
+            # Remove current leader status
+            for user in self.users.values():
+                user["is_leader"] = False
+            # Assign new leader
+            self.users[new_leader_id]["is_leader"] = True
+            await self.generic_notify("leader_assigned", {"user_id": new_leader_id})
+
+    async def leader_assigned(self, event):
+        user_id = event["user_id"]
+        await self.send(
+            text_data=json.dumps({"type": "leader_assigned", "user_id": user_id})
+        )
+
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json["action"]
@@ -119,6 +192,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
             "get_topics": self.get_topics,
             "add_user": self.add_user,
             "vote": self.vote,
+            "rename": self.rename,
+            "assign_leader": self.assign_leader,
         }
 
         method = get_data_to_response.get(message, lambda: None)

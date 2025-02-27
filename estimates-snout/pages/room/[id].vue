@@ -26,14 +26,29 @@
       <h2>Participantes</h2>
       <ul>
         <li
-          v-for="(participant, index) in participants"
-          :key="index"
-          :class="{ self: participant.isSelf }"
+          v-for="participant in participants"
+          :key="participant.user_id"
+          :class="{ self: participant.isSelf, leader: participant.isLeader }"
         >
-          <strong>{{ participant.name }}</strong
-          >: {{ participant.vote }}
+          <strong>{{ participant.name }}</strong>
+          <p>Voto: {{ participant.vote }}</p>
+          <button
+            v-if="isCurrentUserLeader && !participant.isSelf"
+            @click="assignLeader(participant.user_id)"
+          >
+            Hacer Líder
+          </button>
         </li>
       </ul>
+    </div>
+    <div v-if="userId" class="rename-input">
+      <label for="rename">Cambiar nombre:</label>
+      <input
+        v-model="currentUserName"
+        @keyup.enter="renameUser"
+        placeholder="Cambiar nombre"
+      />
+      <button @click="renameUser">Cambiar</button>
     </div>
     <div class="cards-list">
       <h2>Cartas</h2>
@@ -52,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRuntimeConfig } from "#app";
 import { useRoute } from "vue-router";
 
@@ -64,6 +79,22 @@ const topics = ref([]);
 const actualTopic = ref(null);
 const participants = ref([]);
 const userId = ref(null);
+const newName = ref("");
+
+const currentUserName = computed({
+  get() {
+    const user = participants.value.find((p) => p.isSelf);
+    return user ? user.name : "";
+  },
+  set(value) {
+    newName.value = value;
+  },
+});
+
+const isCurrentUserLeader = computed(() => {
+  const user = participants.value.find((p) => p.isSelf);
+  return user ? user.isLeader : false;
+});
 
 const cards = [
   ["0", "0"],
@@ -93,7 +124,6 @@ onMounted(() => {
 
   socket.value.onmessage = (event) => {
     const data = JSON.parse(event.data);
-    console.log(data);
     if (data.type === "get_topics") {
       roomName.value = data.room_name;
       topics.value = data.topics;
@@ -107,6 +137,7 @@ onMounted(() => {
         name: data.name,
         vote: "?",
         isSelf: true,
+        isLeader: data.is_leader,
       });
 
       data.participants.forEach((participant) => {
@@ -115,6 +146,7 @@ onMounted(() => {
           name: participant.name,
           vote: "?",
           isSelf: false,
+          isLeader: participant.is_leader,
         });
       });
     } else if (data.type === "user_added") {
@@ -128,6 +160,7 @@ onMounted(() => {
           name: data.user.name,
           vote: "?",
           isSelf: false,
+          isLeader: false,
         });
       }
     } else if (data.type === "user_disconnected") {
@@ -142,6 +175,19 @@ onMounted(() => {
       if (participant) {
         participant.vote = data.vote;
       }
+    } else if (data.type === "user_renamed") {
+      const participant = participants.value.find(
+        (participant) => participant.user_id === data.user_id
+      );
+
+      if (participant) {
+        participant.name = data.name;
+      }
+    } else if (data.type === "leader_assigned") {
+      participants.value = participants.value.map((participant) => ({
+        ...participant,
+        isLeader: participant.user_id === data.user_id,
+      }));
     }
   };
 
@@ -168,6 +214,29 @@ const sendVote = (voteValue) => {
       vote: voteValue,
     };
     socket.value.send(JSON.stringify(voteMessage));
+  }
+};
+
+const renameUser = () => {
+  if (socket.value && userId.value && newName.value.trim() !== "") {
+    const renameMessage = {
+      action: "rename",
+      user_id: userId.value,
+      name: newName.value.trim(),
+    };
+    socket.value.send(JSON.stringify(renameMessage));
+    newName.value = ""; // Clear the input after sending
+  }
+};
+
+const assignLeader = (newLeaderId) => {
+  if (socket.value && userId.value) {
+    const leaderMessage = {
+      action: "assign_leader",
+      user_id: userId.value,
+      new_leader_id: newLeaderId,
+    };
+    socket.value.send(JSON.stringify(leaderMessage));
   }
 };
 </script>
@@ -237,10 +306,51 @@ const sendVote = (voteValue) => {
   border-radius: 4px;
   box-sizing: border-box;
   text-align: center;
+  position: relative;
 }
 
 .participants-list li.self {
   background-color: #d3f3d3;
+}
+
+.participants-list li.leader::after {
+  content: "Líder";
+  position: absolute;
+  top: -15px;
+  right: 0;
+  background-color: #ffeb3b;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.participants-list li button {
+  margin-top: 5px;
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.rename-input {
+  margin-top: 10px;
+  display: flex;
+  gap: 5px;
+  width: fit-content;
+}
+
+.rename-input input {
+  padding: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  width: 150px; /* Ajusta el ancho del input */
+}
+
+.rename-input button {
+  padding: 5px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .cards-list {
