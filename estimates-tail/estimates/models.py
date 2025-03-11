@@ -8,6 +8,10 @@ class Room(models.Model):
     name = models.CharField(max_length=160)
     public_name = models.UUIDField(unique=True, default=uuid.uuid4)
 
+    @property
+    async def finished(self):
+        return not await self.topic_set.filter(task__completed=False).aexists()
+
     def __str__(self):
         return f"{self.name} ({self.public_name})"
 
@@ -15,6 +19,7 @@ class Room(models.Model):
 class Task(models.Model):
     title = models.CharField(max_length=160)
     description = models.TextField()
+    completed = models.BooleanField(default=False)
 
     def __str__(self):
         return self.title
@@ -36,6 +41,10 @@ class Topic(models.Model):
             return None
 
         values = [vote.point_value for vote in votes if vote.point_value]
+
+        if len(values) == 0:
+            return None
+
         return sum(values) / len(values)
 
 
@@ -58,6 +67,7 @@ class Vote(models.Model):
 
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE)
     voter_name = models.CharField(max_length=160)
+    voter_external_id = models.UUIDField()
     point = models.CharField(max_length=4, choices=POINT_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
 

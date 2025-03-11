@@ -1,16 +1,20 @@
+import asyncio
 import json
 import logging
 import uuid
 
+from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from estimates.models import Room
+from estimates.models import Room, Vote
 
 logger = logging.getLogger(__name__)
 
 
 class RoomConsumer(AsyncWebsocketConsumer):
     users = {}
+    actual_topic = None
+    timeout_task = 5
 
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_public_name"]
@@ -40,7 +44,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
     async def get_topics(self, data):
         topics = []
-        async for topic in self.room.topic_set.select_related("task").all():
+        async for topic in (
+            self.room.topic_set.select_related("task").all().order_by("id")
+        ):
             topics.append(
                 {
                     "id": topic.id,
@@ -49,13 +55,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     "average": await topic.average_votes,
                 }
             )
-        actual_topic = next(
-            (topic["id"] for topic in topics if topic["average"]), topics[0]["id"]
+        self.actual_topic = next(
+            (topic["id"] for topic in topics if not topic["average"]), None
         )
         return {
             "room_name": self.room.name,
             "topics": topics,
-            "actual_topic": actual_topic,
+            "actual_topic": self.actual_topic,
         }
 
     def _generate_id(self):
@@ -75,6 +81,12 @@ class RoomConsumer(AsyncWebsocketConsumer):
     async def add_user(self, data):
         user_id = self._generate_id()
         user_data = {"user_id": user_id, "name": f"User {user_id.split('-')[0]}"}
+        await Vote.objects.acreate(
+            topic_id=self.actual_topic,
+            voter_external_id=user_id,
+            voter_name=user_data["name"],
+        )
+
         await self.generic_notify("user_added", {"user": user_data})
         user_to_return = user_data.copy()
         user_to_return.update({"participants": self._get_user_list()})
@@ -103,6 +115,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Update the user's vote
         if user_id in self.users:
             self.users[user_id]["vote"] = value
+            vote = await Vote.objects.aget(
+                topic_id=self.actual_topic, voter_external_id=user_id
+            )
+            vote.point = value
+            await vote.asave()
 
         # Notify other users about the vote
         await self.generic_notify("user_voted", {"user_id": user_id, "vote": value})
@@ -125,6 +142,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Update the user's name
         if user_id in self.users:
             self.users[user_id]["name"] = name
+            vote = await Vote.objects.aget(
+                topic_id=self.actual_topic, voter_external_id=user_id
+            )
+            vote.voter_name = name
+            await vote.asave()
 
         # Notify other users about the name change
         await self.generic_notify("user_renamed", {"user_id": user_id, "name": name})
@@ -194,6 +216,7 @@ class RoomConsumer(AsyncWebsocketConsumer):
             "vote": self.vote,
             "rename": self.rename,
             "assign_leader": self.assign_leader,
+            "start_round": self.handle_start_round,
         }
 
         method = get_data_to_response.get(message, lambda: None)
@@ -201,6 +224,62 @@ class RoomConsumer(AsyncWebsocketConsumer):
         if data_to_return:
             data_to_return.update({"type": message})
             await self.send(text_data=json.dumps(data_to_return))
+
+    async def handle_start_round(self, data):
+        # Notify all members of the room that the round has started
+        await self.generic_notify("start_round", {"seconds": self.timeout_task})
+
+        # Start the countdown in a separate task
+        asyncio.create_task(self.end_round_after_delay(self.timeout_task))
+
+    async def end_round_after_delay(self, delay):
+        # Wait for the specified delay
+        await asyncio.sleep(delay)
+
+        for user in self.users.values():
+            user["vote"] = None
+
+        # Notify all members of the room that the round has ended
+        topic = await self.room.topic_set.aget(id=self.actual_topic)
+        task = await sync_to_async(lambda: topic.task)()
+        task.completed = True
+        await task.asave()
+
+        avegare = await topic.average_votes
+
+        self.actual_topic = None
+        async for topic in self.room.topic_set.all():
+            if not await topic.average_votes:
+                self.actual_topic = topic.id
+                break
+
+        # Create news Votes
+        if self.actual_topic:
+            for user_id in self.users.keys():
+                await Vote.objects.acreate(
+                    topic_id=self.actual_topic,
+                    voter_external_id=user_id,
+                    voter_name=self.users[user_id]["name"],
+                )
+
+            await self.generic_notify(
+                "end_round", {"average": avegare, "next_topic_id": self.actual_topic}
+            )
+
+    async def start_round(self, event):
+        seconds = event["seconds"]
+        await self.send(
+            text_data=json.dumps({"type": "start_round", "seconds": seconds})
+        )
+
+    async def end_round(self, event):
+        average = event["average"]
+        topic_id = event["next_topic_id"]
+        await self.send(
+            text_data=json.dumps(
+                {"type": "end_round", "average": average, "next_topic_id": topic_id}
+            )
+        )
 
     async def chat_message(self, event):
         message = event["message"]

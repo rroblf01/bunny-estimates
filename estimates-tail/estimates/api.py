@@ -1,8 +1,10 @@
+from uuid import UUID
+
 from asgiref.sync import sync_to_async
 from ninja import Router
 
 from estimates.models import Room, Task, Topic
-from estimates.schemas import RoomOutSchema, TaskListSchema
+from estimates.schemas import RoomOutSchema, RoomResumeSchema, TaskListSchema
 
 router = Router()
 
@@ -19,7 +21,7 @@ async def create_room(request, payload: TaskListSchema):
 
 
 @router.get("/room/{public_name}", response=RoomOutSchema)
-async def get_room(request, public_name: str):
+async def get_room(request, public_name: UUID):
     room = await Room.objects.aget(public_name=public_name)
     topics = await sync_to_async(list)(
         Topic.objects.filter(room=room).values("task__title", "task__description")
@@ -27,5 +29,37 @@ async def get_room(request, public_name: str):
 
     return {
         "name": room.name,
+        "topics": topics,
+    }
+
+
+@router.get("/room/{public_name}/resume", response={200: RoomResumeSchema, 404: str})
+async def get_room_resume(request, public_name: UUID):
+    try:
+        room = await Room.objects.aget(public_name=public_name)
+    except Room.DoesNotExist:
+        return 404, "Room not found"
+
+    topics = []
+    async for topic in room.topic_set.select_related("task").all():
+        topic_data = {
+            "title": topic.task.title,
+            "description": topic.task.description,
+            "votes": [],
+            "average": await topic.average_votes,
+        }
+        async for vote in topic.vote_set.all():
+            if vote.point_value:
+                topic_data["votes"].append(
+                    {
+                        "value": vote.point_value,
+                        "name": vote.voter_name,
+                    }
+                )
+        topics.append(topic_data)
+
+    return 200, {
+        "name": room.name,
+        "finished": await room.finished,
         "topics": topics,
     }

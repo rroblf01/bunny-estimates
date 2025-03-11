@@ -18,6 +18,10 @@
             :class="{ 'active-topic': topic.id === actualTopic.id }"
           >
             {{ topic.title }}
+            <p v-if="topic.average">
+              Promedio:
+              {{ topic.average }}
+            </p>
           </li>
         </ul>
       </div>
@@ -63,6 +67,14 @@
         </li>
       </ul>
     </div>
+    <!-- Botón para iniciar la ronda -->
+    <div v-if="isCurrentUserLeader" class="start-round-button">
+      <button @click="startRound">Iniciar Ronda</button>
+    </div>
+    <!-- Contador -->
+    <div v-if="counter > 0" class="counter">
+      <p>Tiempo restante: {{ counter }} segundos</p>
+    </div>
   </div>
 </template>
 
@@ -80,6 +92,9 @@ const actualTopic = ref(null);
 const participants = ref([]);
 const userId = ref(null);
 const newName = ref("");
+const counter = ref(0);
+let countdownInterval = null;
+const temporaryVotes = ref({}); // Almacenar votos temporales
 
 const currentUserName = computed({
   get() {
@@ -125,6 +140,11 @@ onMounted(() => {
   socket.value.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === "get_topics") {
+      if (!data.actual_topic) {
+        navigateTo(`/room/resume/${route.params.id}/`);
+      }
+      console.log(data);
+
       roomName.value = data.room_name;
       topics.value = data.topics;
       actualTopic.value = data.topics.find(
@@ -173,7 +193,11 @@ onMounted(() => {
       );
 
       if (participant) {
-        participant.vote = data.vote;
+        if (participant.isSelf) {
+          participant.vote = data.vote; // Mostrar el voto del usuario actual
+        } else {
+          temporaryVotes.value[data.user_id] = data.vote; // Almacenar voto temporalmente
+        }
       }
     } else if (data.type === "user_renamed") {
       const participant = participants.value.find(
@@ -188,6 +212,25 @@ onMounted(() => {
         ...participant,
         isLeader: participant.user_id === data.user_id,
       }));
+    } else if (data.type === "start_round") {
+      startCountdown(data.seconds);
+    } else if (data.type === "end_round") {
+      if (!data.next_topic_id) {
+        navigateTo(`/room/resume/${route.params.id}/`);
+      }
+
+      revealVotes();
+
+      // Actualizar el promedio en el tema actual
+      if (actualTopic.value) {
+        actualTopic.value.average = data.average;
+      }
+      // Cambiar al siguiente tema
+      actualTopic.value = topics.value.find(
+        (topic) => topic.id === data.next_topic_id
+      );
+    } else {
+      console.log("Unknown message:", data);
     }
   };
 
@@ -204,6 +247,7 @@ onUnmounted(() => {
   if (socket.value) {
     socket.value.close();
   }
+  clearInterval(countdownInterval);
 });
 
 const sendVote = (voteValue) => {
@@ -238,6 +282,37 @@ const assignLeader = (newLeaderId) => {
     };
     socket.value.send(JSON.stringify(leaderMessage));
   }
+};
+
+const startRound = () => {
+  if (socket.value && userId.value) {
+    const startRoundMessage = {
+      action: "start_round",
+      user_id: userId.value,
+    };
+    socket.value.send(JSON.stringify(startRoundMessage));
+  }
+};
+
+const startCountdown = (seconds) => {
+  counter.value = seconds;
+  clearInterval(countdownInterval);
+  countdownInterval = setInterval(() => {
+    if (counter.value > 0) {
+      counter.value--;
+    } else {
+      clearInterval(countdownInterval);
+    }
+  }, 1000);
+};
+
+const revealVotes = () => {
+  participants.value.forEach((participant) => {
+    if (temporaryVotes.value[participant.user_id] !== undefined) {
+      participant.vote = temporaryVotes.value[participant.user_id];
+    }
+  });
+  temporaryVotes.value = {}; // Limpiar votos temporales después de revelarlos
 };
 </script>
 
@@ -376,5 +451,26 @@ const assignLeader = (newLeaderId) => {
 
 .cards-list .card:hover {
   background-color: #e0e0e0;
+}
+
+.start-round-button {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.start-round-button button {
+  padding: 10px 20px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: #ffeb3b;
+  font-size: 16px;
+}
+
+.counter {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 18px;
+  color: #333;
 }
 </style>

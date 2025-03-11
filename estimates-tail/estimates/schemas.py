@@ -28,3 +28,21 @@ class TopicSchema(Schema):
 class RoomOutSchema(Schema):
     name: str
     topics: list[TopicSchema]
+
+
+class VoteResumeSchema(Schema):
+    name: str
+    value: float | None
+
+
+class TopicResumeSchema(Schema):
+    title: str
+    description: str
+    votes: list[VoteResumeSchema]
+    average: float
+
+
+class RoomResumeSchema(Schema):
+    name: str
+    finished: bool
+    topics: list[TopicResumeSchema]
