@@ -15,6 +15,8 @@ class RoomConsumer(AsyncWebsocketConsumer):
     users = {}
     actual_topic = None
     timeout_task = 5
+    room_info = {}
+    topic_info = {}
 
     async def connect(self):
         self.room_name = self.scope["url_route"]["kwargs"]["room_public_name"]
@@ -24,6 +26,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
         except Room.DoesNotExist:
             await self.close(code=4004)
             return
+
+        if self.room_group_name not in self.room_info:
+            self.room_info[self.room_group_name] = {}
+
         # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
@@ -37,10 +43,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
         await self.generic_notify("user_disconnected", {"user_id": self.user_id})
 
         # If the disconnecting user is the leader, transfer leadership
-        if self.users[self.user_id].get("is_leader"):
+        if self.room_info[self.room_group_name][self.user_id].get("is_leader"):
             await self.transfer_leadership()
 
-        del self.users[self.user_id]
+        del self.room_info[self.room_group_name][self.user_id]
+
+        if not self.room_info[self.room_group_name]:
+            del self.room_info[self.room_group_name]
 
     async def get_topics(self, data):
         topics = []
@@ -55,13 +64,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     "average": await topic.average_votes,
                 }
             )
-        self.actual_topic = next(
+        self.topic_info[self.room_group_name] = next(
             (topic["id"] for topic in topics if not topic["average"]), None
         )
         return {
             "room_name": self.room.name,
             "topics": topics,
-            "actual_topic": self.actual_topic,
+            "actual_topic": self.topic_info[self.room_group_name],
         }
 
     def _generate_id(self):
@@ -75,14 +84,14 @@ class RoomConsumer(AsyncWebsocketConsumer):
                 "vote": v.get("vote"),
                 "is_leader": v.get("is_leader"),
             }
-            for k, v in self.users.items()
+            for k, v in self.room_info[self.room_group_name].items()
         ]
 
     async def add_user(self, data):
         user_id = self._generate_id()
         user_data = {"user_id": user_id, "name": f"User {user_id.split('-')[0]}"}
-        await Vote.objects.acreate(
-            topic_id=self.actual_topic,
+        await Vote.objects.aget_or_create(
+            topic_id=self.topic_info[self.room_group_name],
             voter_external_id=user_id,
             voter_name=user_data["name"],
         )
@@ -90,14 +99,17 @@ class RoomConsumer(AsyncWebsocketConsumer):
         await self.generic_notify("user_added", {"user": user_data})
         user_to_return = user_data.copy()
         user_to_return.update({"participants": self._get_user_list()})
-        self.users[user_id] = user_data
+        self.room_info[self.room_group_name][user_id] = user_data
 
         # Store the user_id in the instance
         self.user_id = user_id
 
         # Assign the first user as the leader
-        if not any(user.get("is_leader") for user in self.users.values()):
-            self.users[user_id]["is_leader"] = True
+        if not any(
+            user.get("is_leader")
+            for user in self.room_info[self.room_group_name].values()
+        ):
+            self.room_info[self.room_group_name][user_id]["is_leader"] = True
             user_to_return["is_leader"] = True
             await self.generic_notify("leader_assigned", {"user_id": user_id})
 
@@ -113,10 +125,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         value = data["vote"]
 
         # Update the user's vote
-        if user_id in self.users:
-            self.users[user_id]["vote"] = value
+        if user_id in self.room_info[self.room_group_name]:
+            self.room_info[self.room_group_name][user_id]["vote"] = value
             vote = await Vote.objects.aget(
-                topic_id=self.actual_topic, voter_external_id=user_id
+                topic_id=self.topic_info[self.room_group_name],
+                voter_external_id=user_id,
             )
             vote.point = value
             await vote.asave()
@@ -140,10 +153,11 @@ class RoomConsumer(AsyncWebsocketConsumer):
         name = data["name"]
 
         # Update the user's name
-        if user_id in self.users:
-            self.users[user_id]["name"] = name
+        if user_id in self.room_info[self.room_group_name]:
+            self.room_info[self.room_group_name][user_id]["name"] = name
             vote = await Vote.objects.aget(
-                topic_id=self.actual_topic, voter_external_id=user_id
+                topic_id=self.topic_info[self.room_group_name],
+                voter_external_id=user_id,
             )
             vote.voter_name = name
             await vote.asave()
@@ -173,31 +187,31 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
     async def transfer_leadership(self):
         # Transfer leadership to another user if the leader leaves
-        if self.users:
+        if self.room_info[self.room_group_name]:
             new_leader_id = next(
                 (
                     user_id
-                    for user_id, user in self.users.items()
+                    for user_id, user in self.room_info[self.room_group_name].items()
                     if not user.get("is_leader")
                 ),
-                next(iter(self.users)),
+                next(iter(self.room_info[self.room_group_name])),
             )
-            self.users[new_leader_id]["is_leader"] = True
+            self.room_info[self.room_group_name][new_leader_id]["is_leader"] = True
             await self.generic_notify("leader_assigned", {"user_id": new_leader_id})
 
     async def assign_leader(self, data):
         current_leader_id = data["user_id"]
         new_leader_id = data["new_leader_id"]
         if (
-            new_leader_id in self.users
-            and current_leader_id in self.users
-            and self.users[current_leader_id].get("is_leader")
+            new_leader_id in self.room_info[self.room_group_name]
+            and current_leader_id in self.room_info[self.room_group_name]
+            and self.room_info[self.room_group_name][current_leader_id].get("is_leader")
         ):
             # Remove current leader status
-            for user in self.users.values():
+            for user in self.room_info[self.room_group_name].values():
                 user["is_leader"] = False
             # Assign new leader
-            self.users[new_leader_id]["is_leader"] = True
+            self.room_info[self.room_group_name][new_leader_id]["is_leader"] = True
             await self.generic_notify("leader_assigned", {"user_id": new_leader_id})
 
     async def leader_assigned(self, event):
@@ -236,34 +250,38 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Wait for the specified delay
         await asyncio.sleep(delay)
 
-        for user in self.users.values():
+        for user in self.room_info[self.room_group_name].values():
             user["vote"] = None
 
         # Notify all members of the room that the round has ended
-        topic = await self.room.topic_set.aget(id=self.actual_topic)
+        topic = await self.room.topic_set.aget(id=self.topic_info[self.room_group_name])
         task = await sync_to_async(lambda: topic.task)()
         task.completed = True
         await task.asave()
 
         avegare = await topic.average_votes
 
-        self.actual_topic = None
+        self.topic_info[self.room_group_name] = None
         async for topic in self.room.topic_set.all():
             if not await topic.average_votes:
-                self.actual_topic = topic.id
+                self.topic_info[self.room_group_name] = topic.id
                 break
 
         # Create news Votes
-        if self.actual_topic:
-            for user_id in self.users.keys():
+        if self.topic_info[self.room_group_name]:
+            for user_id in self.room_info[self.room_group_name].keys():
                 await Vote.objects.acreate(
-                    topic_id=self.actual_topic,
+                    topic_id=self.topic_info[self.room_group_name],
                     voter_external_id=user_id,
-                    voter_name=self.users[user_id]["name"],
+                    voter_name=self.room_info[self.room_group_name][user_id]["name"],
                 )
 
             await self.generic_notify(
-                "end_round", {"average": avegare, "next_topic_id": self.actual_topic}
+                "end_round",
+                {
+                    "average": avegare,
+                    "next_topic_id": self.topic_info[self.room_group_name],
+                },
             )
 
     async def start_round(self, event):

@@ -67,11 +67,11 @@
         </li>
       </ul>
     </div>
-    <!-- Botón para iniciar la ronda -->
+
     <div v-if="isCurrentUserLeader" class="start-round-button">
       <button @click="startRound">Iniciar Ronda</button>
     </div>
-    <!-- Contador -->
+
     <div v-if="counter > 0" class="counter">
       <p>Tiempo restante: {{ counter }} segundos</p>
     </div>
@@ -94,7 +94,7 @@ const userId = ref(null);
 const newName = ref("");
 const counter = ref(0);
 let countdownInterval = null;
-const temporaryVotes = ref({}); // Almacenar votos temporales
+const temporaryVotes = ref({});
 
 const currentUserName = computed({
   get() {
@@ -143,7 +143,6 @@ onMounted(() => {
       if (!data.actual_topic) {
         navigateTo(`/room/resume/${route.params.id}/`);
       }
-      console.log(data);
 
       roomName.value = data.room_name;
       topics.value = data.topics;
@@ -194,9 +193,9 @@ onMounted(() => {
 
       if (participant) {
         if (participant.isSelf) {
-          participant.vote = data.vote; // Mostrar el voto del usuario actual
+          participant.vote = data.vote;
         } else {
-          temporaryVotes.value[data.user_id] = data.vote; // Almacenar voto temporalmente
+          temporaryVotes.value[data.user_id] = data.vote;
         }
       }
     } else if (data.type === "user_renamed") {
@@ -221,11 +220,10 @@ onMounted(() => {
 
       revealVotes();
 
-      // Actualizar el promedio en el tema actual
       if (actualTopic.value) {
         actualTopic.value.average = data.average;
       }
-      // Cambiar al siguiente tema
+
       actualTopic.value = topics.value.find(
         (topic) => topic.id === data.next_topic_id
       );
@@ -235,7 +233,7 @@ onMounted(() => {
   };
 
   socket.value.onclose = () => {
-    // navigateTo("/");
+    navigateTo("/");
   };
 
   socket.value.onerror = (error) => {
@@ -269,7 +267,7 @@ const renameUser = () => {
       name: newName.value.trim(),
     };
     socket.value.send(JSON.stringify(renameMessage));
-    newName.value = ""; // Clear the input after sending
+    newName.value = "";
   }
 };
 
@@ -312,7 +310,7 @@ const revealVotes = () => {
       participant.vote = temporaryVotes.value[participant.user_id];
     }
   });
-  temporaryVotes.value = {}; // Limpiar votos temporales después de revelarlos
+  temporaryVotes.value = {};
 };
 </script>
 
@@ -418,7 +416,7 @@ const revealVotes = () => {
   padding: 5px;
   border: 1px solid #ccc;
   border-radius: 4px;
-  width: 150px; /* Ajusta el ancho del input */
+  width: 150px;
 }
 
 .rename-input button {

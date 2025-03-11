@@ -41,14 +41,14 @@ async def get_room_resume(request, public_name: UUID):
         return 404, "Room not found"
 
     topics = []
-    async for topic in room.topic_set.select_related("task").all():
+    async for topic in room.topic_set.select_related("task").all().order_by("id"):
         topic_data = {
             "title": topic.task.title,
             "description": topic.task.description,
             "votes": [],
             "average": await topic.average_votes,
         }
-        async for vote in topic.vote_set.all():
+        async for vote in topic.vote_set.all().order_by("id"):
             if vote.point_value:
                 topic_data["votes"].append(
                     {
