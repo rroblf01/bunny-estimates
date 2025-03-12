@@ -135,6 +135,9 @@ export function useRoom() {
             isLeader: participant.user_id === data.user_id,
           }));
         } else if (data.type === "start_round") {
+          participants.value.forEach((participant) => {
+            participant.vote = "?";
+          });
           startCountdown(data.seconds);
         } else if (data.type === "end_round") {
           isRoundActive.value = false;
