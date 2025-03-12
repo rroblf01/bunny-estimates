@@ -43,7 +43,6 @@
       </div>
     </form>
 
-    <!-- Modal de Confirmación -->
     <div v-if="showModal" class="modal">
       <div class="modal-content">
         <p>¿Estás seguro de que quieres eliminar esta tarea?</p>
@@ -230,7 +229,7 @@ textarea {
 
 .task-list {
   margin-top: 1rem;
-  height: 50vh; /* Ajusta la altura según sea necesario */
+  height: 50vh;
   overflow-y: auto;
 }
 

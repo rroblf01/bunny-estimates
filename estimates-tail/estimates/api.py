@@ -11,7 +11,7 @@ router = Router()
 
 @router.post("/room")
 async def create_room(request, payload: TaskListSchema):
-    room = await Room.objects.acreate(name="New Room")
+    room = await Room.objects.acreate(name=payload.room_name)
     for task_data in payload.tasks:
         task = await Task.objects.acreate(
             title=task_data.title, description=task_data.description

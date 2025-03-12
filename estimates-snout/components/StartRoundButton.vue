@@ -1,10 +1,16 @@
 <template>
   <div class="start-round-button">
-    <button @click="$emit('startRound')">Iniciar Ronda</button>
+    <button :disabled="isRoundActive" @click="$emit('startRound')">
+      Iniciar Ronda
+    </button>
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+defineProps({
+  isRoundActive: Boolean,
+});
+</script>
 
 <style scoped>
 .start-round-button {
@@ -19,5 +25,10 @@
   cursor: pointer;
   background-color: #ffeb3b;
   font-size: 16px;
+}
+
+.start-round-button button:disabled {
+  background-color: #e0e0e0;
+  cursor: not-allowed;
 }
 </style>
