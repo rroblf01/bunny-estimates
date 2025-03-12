@@ -23,7 +23,10 @@ Bunny Estimates es una aplicación de planning poker que ayuda a los equipos a e
     ```bash
     cd bunny-estimates
     ```
-3. Abre el proyecto con los devcontainers
+3. Abre el proyecto con los devcontainers o ejecuta:
+    ```bash
+    docker compose build && docker compose up
+    ```
 
 ## Uso
 
