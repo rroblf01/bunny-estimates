@@ -41,7 +41,11 @@ async def get_room_resume(request, public_name: UUID):
         return 404, "Room not found"
 
     topics = []
-    async for topic in room.topic_set.select_related("task").all().order_by("id"):
+    async for topic in (
+        room.topic_set.select_related("task")
+        .filter(task__completed=True)
+        .order_by("id")
+    ):
         topic_data = {
             "title": topic.task.title,
             "description": topic.task.description,

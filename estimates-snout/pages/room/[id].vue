@@ -13,7 +13,11 @@
       @update:currentUserName="currentUserName = $event"
       @renameUser="renameUser"
     />
-    <CardsList :cards="cards" @sendVote="sendVote" />
+    <CardsList
+      :cards="cards"
+      @sendVote="sendVote"
+      :selectedCard="selectedCard"
+    />
     <StartRoundButton
       v-if="isCurrentUserLeader"
       :isRoundActive="isRoundActive"
@@ -47,6 +51,8 @@ const {
   assignLeader,
   startRound,
   isRoundActive,
+  selectedCard,
+  resetSelectedCard,
 } = useRoom();
 </script>
 

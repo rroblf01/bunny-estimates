@@ -14,6 +14,7 @@ export function useRoom() {
   const newName = ref("");
   const counter = ref(0);
   const isRoundActive = ref(false);
+  const selectedCard = ref(null);
   let countdownInterval = null;
   const temporaryVotes = ref({});
 
@@ -184,6 +185,7 @@ export function useRoom() {
         vote: voteValue,
       };
       socket.value.send(JSON.stringify(voteMessage));
+      selectedCard.value = voteValue;
     }
   };
 
@@ -240,6 +242,11 @@ export function useRoom() {
       }
     });
     temporaryVotes.value = {};
+    resetSelectedCard();
+  };
+
+  const resetSelectedCard = () => {
+    selectedCard.value = null;
   };
 
   return {
@@ -258,5 +265,7 @@ export function useRoom() {
     assignLeader,
     startRound,
     isRoundActive,
+    selectedCard,
+    resetSelectedCard,
   };
 }

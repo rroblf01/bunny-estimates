@@ -6,7 +6,7 @@
         v-for="(card, index) in cards"
         :key="index"
         @click="$emit('sendVote', card[0])"
-        class="card"
+        :class="['card', { selected: card[0] === selectedCard }]"
       >
         {{ card[1] }}
       </li>
@@ -19,6 +19,7 @@ import { defineProps } from "vue";
 
 const props = defineProps({
   cards: Array,
+  selectedCard: String,
 });
 </script>
 
@@ -46,5 +47,9 @@ const props = defineProps({
 
 .cards-list .card:hover {
   background-color: #e0e0e0;
+}
+
+.cards-list .card.selected {
+  background-color: #d3f3d3;
 }
 </style>
