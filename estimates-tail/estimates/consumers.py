@@ -1,14 +1,10 @@
 import asyncio
 import json
-import logging
 import uuid
 
-from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
 from estimates.models import Room, Vote
-
-logger = logging.getLogger(__name__)
 
 
 class RoomConsumer(AsyncWebsocketConsumer):
@@ -254,8 +250,10 @@ class RoomConsumer(AsyncWebsocketConsumer):
             user["vote"] = None
 
         # Notify all members of the room that the round has ended
-        topic = await self.room.topic_set.aget(id=self.topic_info[self.room_group_name])
-        task = await sync_to_async(lambda: topic.task)()
+        topic = await self.room.topic_set.select_related("task").aget(
+            id=self.topic_info[self.room_group_name]
+        )
+        task = topic.task
         task.completed = True
         await task.asave()
 
