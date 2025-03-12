@@ -39,9 +39,6 @@ class RoomConsumer(AsyncWebsocketConsumer):
         # Remove user from the group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
-        # Notify other users about the disconnection
-        await self.generic_notify("user_disconnected", {"user_id": self.user_id})
-
         # If the disconnecting user is the leader, transfer leadership
         if self.room_info[self.room_group_name][self.user_id].get("is_leader"):
             await self.transfer_leadership()
@@ -50,6 +47,9 @@ class RoomConsumer(AsyncWebsocketConsumer):
 
         if not self.room_info[self.room_group_name]:
             del self.room_info[self.room_group_name]
+
+        # Notify other users about the disconnection
+        await self.generic_notify("user_disconnected", {"user_id": self.user_id})
 
     async def get_topics(self, data):
         topics = []
@@ -276,13 +276,13 @@ class RoomConsumer(AsyncWebsocketConsumer):
                     voter_name=self.room_info[self.room_group_name][user_id]["name"],
                 )
 
-            await self.generic_notify(
-                "end_round",
-                {
-                    "average": avegare,
-                    "next_topic_id": self.topic_info[self.room_group_name],
-                },
-            )
+        await self.generic_notify(
+            "end_round",
+            {
+                "average": avegare,
+                "next_topic_id": self.topic_info[self.room_group_name],
+            },
+        )
 
     async def start_round(self, event):
         seconds = event["seconds"]

@@ -1,80 +1,21 @@
 <template>
   <div class="room-container">
     <h1 class="room-name">{{ roomName }}</h1>
-    <div class="room-content">
-      <div class="topic-section">
-        <h2>Tema Actual</h2>
-        <div v-if="actualTopic" class="actual-topic">
-          <h3>{{ actualTopic.title }}</h3>
-          <p>{{ actualTopic.description }}</p>
-        </div>
-      </div>
-      <div class="topics-list">
-        <h2>Lista de Temas</h2>
-        <ul>
-          <li
-            v-for="topic in topics"
-            :key="topic.id"
-            :class="{ 'active-topic': topic.id === actualTopic.id }"
-          >
-            {{ topic.title }}
-            <p v-if="topic.average">
-              Promedio:
-              {{ topic.average }}
-            </p>
-          </li>
-        </ul>
-      </div>
-    </div>
-    <div class="participants-list">
-      <h2>Participantes</h2>
-      <ul>
-        <li
-          v-for="participant in participants"
-          :key="participant.user_id"
-          :class="{ self: participant.isSelf, leader: participant.isLeader }"
-        >
-          <strong>{{ participant.name }}</strong>
-          <p>Voto: {{ participant.vote }}</p>
-          <button
-            v-if="isCurrentUserLeader && !participant.isSelf"
-            @click="assignLeader(participant.user_id)"
-          >
-            Hacer Líder
-          </button>
-        </li>
-      </ul>
-    </div>
-    <div v-if="userId" class="rename-input">
-      <label for="rename">Cambiar nombre:</label>
-      <input
-        v-model="currentUserName"
-        @keyup.enter="renameUser"
-        placeholder="Cambiar nombre"
-      />
-      <button @click="renameUser">Cambiar</button>
-    </div>
-    <div class="cards-list">
-      <h2>Cartas</h2>
-      <ul>
-        <li
-          v-for="(card, index) in cards"
-          :key="index"
-          @click="sendVote(card[0])"
-          class="card"
-        >
-          {{ card[1] }}
-        </li>
-      </ul>
-    </div>
-
-    <div v-if="isCurrentUserLeader" class="start-round-button">
-      <button @click="startRound">Iniciar Ronda</button>
-    </div>
-
-    <div v-if="counter > 0" class="counter">
-      <p>Tiempo restante: {{ counter }} segundos</p>
-    </div>
+    <RoomContent :topics="topics" :actualTopic="actualTopic" />
+    <ParticipantsList
+      :participants="participants"
+      :isCurrentUserLeader="isCurrentUserLeader"
+      @assignLeader="assignLeader"
+    />
+    <RenameInput
+      v-if="userId"
+      :currentUserName="currentUserName"
+      @update:currentUserName="currentUserName = $event"
+      @renameUser="renameUser"
+    />
+    <CardsList :cards="cards" @sendVote="sendVote" />
+    <StartRoundButton v-if="isCurrentUserLeader" @startRound="startRound" />
+    <Counter v-if="counter > 0" :counter="counter" />
   </div>
 </template>
 
@@ -82,6 +23,12 @@
 import { ref, onMounted, onUnmounted, computed } from "vue";
 import { useRuntimeConfig } from "#app";
 import { useRoute } from "vue-router";
+import RoomContent from "@/components/RoomContent.vue";
+import ParticipantsList from "@/components/ParticipantsList.vue";
+import RenameInput from "@/components/RenameInput.vue";
+import CardsList from "@/components/CardsList.vue";
+import StartRoundButton from "@/components/StartRoundButton.vue";
+import Counter from "@/components/Counter.vue";
 
 const config = useRuntimeConfig();
 const route = useRoute();
@@ -233,7 +180,7 @@ onMounted(() => {
   };
 
   socket.value.onclose = () => {
-    navigateTo("/");
+    navigateTo(`/room/resume/${route.params.id}/`);
   };
 
   socket.value.onerror = (error) => {
